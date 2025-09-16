@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: fastapi-backend
+    env: python
+    plan: free
+    buildCommand: |
+      pip install uv
+      uv sync --frozen
+    startCommand: |
+      uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fastapi-db
+          property: connectionString
+
+databases:
+  - name: fastapi-db
+    plan: free
+    databaseName: fastapi
+    postgresMajorVersion: "15"
