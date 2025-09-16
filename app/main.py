@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.auth.admin import create_admin
-from app.db import create_db_and_tables
+from app.db import AsyncSessionLocal, create_db_and_tables
 from app.routers.question_router import question_router
 from app.routers.quiz_answer_router import quiz_answer_router
 from app.routers.quiz_attempt_router import quiz_attempt_router
@@ -22,6 +22,18 @@ async def lifespan(app: FastAPI):
     print("Creating tables..")
     await create_db_and_tables()
     await create_admin()
+     # Optional: test DB connection
+    retries = 5
+    for i in range(retries):
+        try:
+            async with AsyncSessionLocal() as session:
+                await session.execute("SELECT 1")
+            print("DB connected!")
+            break
+        except Exception as e:
+            print(f"DB not ready, retry {i+1}/{retries}...", e)
+            import asyncio
+            await asyncio.sleep(3)
     yield
 
 

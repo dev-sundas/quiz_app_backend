@@ -17,21 +17,3 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
 
-import asyncio
-import asyncpg
-
-DATABASE_URL = "postgresql+asyncpg://postgres:PASSWORD@postgres-6j0z.railway.internal:5432/railway"
-
-async def connect_db(retries=5, delay=3):
-    for i in range(retries):
-        try:
-            conn = await asyncpg.connect(DATABASE_URL)
-            print("DB connected!")
-            return conn
-        except Exception as e:
-            print(f"DB not ready, retrying {i+1}/{retries}...", e)
-            await asyncio.sleep(delay)
-    raise Exception("Could not connect to DB after retries")
-
-# Example usage
-asyncio.run(connect_db())
