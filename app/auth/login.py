@@ -104,6 +104,8 @@ async def login_for_access_token(
     # Use JSONResponse
     response = JSONResponse(content={
         "success": True,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
         "userId": user.id,
         "role": user.role.name
     })
