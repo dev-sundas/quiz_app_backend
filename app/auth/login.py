@@ -170,42 +170,7 @@ async def refresh_token_endpoint(
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
 
-# @auth_router.post("/logout")
-# async def logout(
-#     response: Response,
-#     request: LogoutRequest,
-#     session: Annotated[AsyncSession, Depends(get_session)],
-#     user: Annotated[User | None, Depends(get_current_user)] = None,
-# ):
-#     # Logout via access token
-#     if user:
-#         await session.execute(
-#             update(RefreshToken)
-#             .where(RefreshToken.user_id == user.id)
-#             .values(revoked=True)
-#         )
-#         await session.commit()
-#         # Delete cookies
-#         response.delete_cookie("access_token")
-#         response.delete_cookie("refresh_token")
-#         return {"msg": "Logged out with access token"}
 
-#     # Logout via refresh token (if sent in request)
-#     elif request.refresh_token:
-#         result = await session.exec(
-#             select(RefreshToken).where(RefreshToken.token == request.refresh_token)
-#         )
-#         db_token = result.first()
-#         if db_token:
-#             db_token.revoked = True
-#             session.add(db_token)
-#             await session.commit()
-#             # Delete cookies
-#             response.delete_cookie("access_token")
-#             response.delete_cookie("refresh_token")
-#             return {"msg": "Logged out with refresh token"}
-
-#     raise HTTPException(status_code=401, detail="No valid token for logout")
 @auth_router.post("/logout")
 async def logout(
     response: Response,
