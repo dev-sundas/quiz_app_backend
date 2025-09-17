@@ -8,7 +8,24 @@ from app.models.user import Role, User
 from app.schemas.user_schema import RoleCreate, RoleUpdate
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
-   
+from app.db import AsyncSessionLocal
+
+async def create_auto_roles():
+    async with AsyncSessionLocal() as session:
+        result = await session.exec(select(Role))
+        existing_roles = {r.name for r in result.all()}
+
+        required_roles = [
+            ("admin", "Administrator role"),
+            ("student", "Student role")
+        ]
+
+        for name, description in required_roles:
+            if name not in existing_roles:
+                session.add(Role(name=name, description=description))
+
+        await session.commit()
+
 
 async def get_all_role(session: Annotated[AsyncSession, Depends(get_session)]):
     result = await session.exec(

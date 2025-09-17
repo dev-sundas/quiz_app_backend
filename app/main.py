@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from app.auth.admin import create_admin
+from app.crud.role_crud import create_auto_roles
 from app.db import create_db_and_tables
 from app.routers.question_router import question_router
 from app.routers.quiz_answer_router import quiz_answer_router
@@ -21,6 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 async def lifespan(app: FastAPI):
     print("Creating tables..")
     await create_db_and_tables()
+    await create_auto_roles()
     await create_admin()
     yield
 
