@@ -2,7 +2,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from datetime import datetime, timedelta
 from typing import Annotated
-from fastapi import Depends,HTTPException, status
+from fastapi import Depends,HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
 from jose import JWTError,jwt
@@ -46,14 +46,17 @@ def create_refresh_token(data: dict, expires_delta: timedelta = timedelta(hours=
 
 async def get_current_user(
     session: Annotated[AsyncSession, Depends(get_session)],
-    token: Annotated[str, Depends(oauth2_scheme)]
+    # token: Annotated[str, Depends(oauth2_scheme)]
+    request: Request,
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-
+    token = request.cookies.get("access_token")
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")

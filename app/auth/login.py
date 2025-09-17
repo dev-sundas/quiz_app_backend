@@ -1,6 +1,8 @@
 # from typing import Annotated
+import json
 from typing import Annotated
-from fastapi import APIRouter, Body, Depends, Form, HTTPException, status
+from fastapi import APIRouter, Body, Cookie, Depends, Form, HTTPException, Response, status
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from sqlalchemy import update
 from sqlmodel import select
@@ -92,13 +94,39 @@ async def login_for_access_token(
         refresh_token = create_refresh_token(data={"sub": user.username})
         await save_refresh_token(session, user.id, refresh_token)
 
-    return Token(
-        access_token=access_token,
-        token_type="bearer",
-        userId=user.id,
-        refresh_token=refresh_token,
-        role=user.role.name
+    # return Token(
+    #     access_token=access_token,
+    #     token_type="bearer",
+    #     userId=user.id,
+    #     refresh_token=refresh_token,
+    #     role=user.role.name
+    # )
+    # Use JSONResponse
+    response = JSONResponse(content={
+        "success": True,
+        "userId": user.id,
+        "role": user.role.name
+    })
+
+    # Set HttpOnly cookies
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        secure=True,
+        samesite="lax"
     )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        max_age=SLIDING_EXPIRATION_HOURS * 3600,
+        secure=True,
+        samesite="lax"
+    )
+
+    return response
 
 # ---------------------
 # Refresh endpoint
@@ -106,9 +134,12 @@ async def login_for_access_token(
 @auth_router.post("/refresh")
 async def refresh_token_endpoint(
     session: Annotated[AsyncSession, Depends(get_session)],
-    refresh_token: str = Form(...), 
+    # refresh_token: str = Form(...), 
      # refresh_token: str,
+     refresh_token: str = Cookie(None)  # read refresh token from cookie
 ):
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="No refresh token provided")
     try:
         payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
@@ -139,29 +170,63 @@ async def refresh_token_endpoint(
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
 
+# @auth_router.post("/logout")
+# async def logout(
+#     response: Response,
+#     request: LogoutRequest,
+#     session: Annotated[AsyncSession, Depends(get_session)],
+#     user: Annotated[User | None, Depends(get_current_user)] = None,
+# ):
+#     # Logout via access token
+#     if user:
+#         await session.execute(
+#             update(RefreshToken)
+#             .where(RefreshToken.user_id == user.id)
+#             .values(revoked=True)
+#         )
+#         await session.commit()
+#         # Delete cookies
+#         response.delete_cookie("access_token")
+#         response.delete_cookie("refresh_token")
+#         return {"msg": "Logged out with access token"}
 
+#     # Logout via refresh token (if sent in request)
+#     elif request.refresh_token:
+#         result = await session.exec(
+#             select(RefreshToken).where(RefreshToken.token == request.refresh_token)
+#         )
+#         db_token = result.first()
+#         if db_token:
+#             db_token.revoked = True
+#             session.add(db_token)
+#             await session.commit()
+#             # Delete cookies
+#             response.delete_cookie("access_token")
+#             response.delete_cookie("refresh_token")
+#             return {"msg": "Logged out with refresh token"}
 
-
-
-
+#     raise HTTPException(status_code=401, detail="No valid token for logout")
 @auth_router.post("/logout")
 async def logout(
-    request: LogoutRequest,
+    response: Response,
     session: Annotated[AsyncSession, Depends(get_session)],
+    request: LogoutRequest | None = None,
     user: Annotated[User | None, Depends(get_current_user)] = None,
 ):
     if user:
-        # ✅ Option 1: logout with access token
+        # Revoke all refresh tokens for this user
         await session.execute(
             update(RefreshToken)
             .where(RefreshToken.user_id == user.id)
             .values(revoked=True)
         )
         await session.commit()
+
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
         return {"msg": "Logged out with access token"}
 
-    elif request.refresh_token:
-        # ✅ Option 2: logout with refresh token
+    elif request and request.refresh_token:
         result = await session.exec(
             select(RefreshToken).where(RefreshToken.token == request.refresh_token)
         )
@@ -170,8 +235,9 @@ async def logout(
             db_token.revoked = True
             session.add(db_token)
             await session.commit()
-            return {"msg": "Logged out with refresh token"}
+
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
+        return {"msg": "Logged out with refresh token"}
 
     raise HTTPException(status_code=401, detail="No valid token for logout")
-
-
