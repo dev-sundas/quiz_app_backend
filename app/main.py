@@ -14,7 +14,7 @@ from app.auth.login import auth_router
 
 from fastapi.middleware.cors import CORSMiddleware
 
-origins = ["https://quiz-app-black-kappa.vercel.app"]
+# origins = ["https://quiz-app-black-kappa.vercel.app"]
 
 
 @asynccontextmanager
@@ -39,7 +39,7 @@ app.include_router(quiz_result_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["https://quiz-app-black-kappa.vercel.app"],  # ✅ correct
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
