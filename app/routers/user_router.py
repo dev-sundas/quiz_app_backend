@@ -5,7 +5,7 @@ from app.auth.admin import admin_required, user_required
 from app.crud.question_crud import get_all_questions
 from app.crud.quiz_attempt_crud import get_all_attempts
 from app.crud.quiz_crud import get_all_quizzes
-from app.crud.user_crud import create_user, delete_user, get_all_user, get_user_by_id, signup_student, update_user
+from app.crud.user_crud import create_user, delete_user, get_all_user, get_user_by_id, signup_student, update_my_profile, update_user
 from app.db import get_session
 from app.models.user import User
 from app.schemas.user_schema  import UserCreate, UserRead, UserUpdate
@@ -32,7 +32,10 @@ async def get_current_user_profile(
         "updated_at": current_user.updated_at.isoformat() if current_user.updated_at else None,
     }
 
-
+@user_router.put("/me/update")
+async def updateMyprofile( data: UserUpdate,session: Annotated[AsyncSession, Depends(get_session)],user: User = Depends(user_required)):
+    user = await update_my_profile(data=data,session=session,user=user)
+    return user
 @user_router.get("/admin/stats")
 async def get_admin_stats(session: Annotated[AsyncSession, Depends(get_session)],admin: User = Depends(admin_required)):
     total_users = len(await get_all_user(session=session))

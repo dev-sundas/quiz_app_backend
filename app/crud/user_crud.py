@@ -143,7 +143,7 @@ async def update_user(
     session: Annotated[AsyncSession, Depends(get_session)],
     user_id: int,
     data: UserUpdate,
-    user: User = Depends(user_required)
+    user: User = Depends(admin_required)
 ):
     result = await session.exec(
         select(User)
@@ -204,5 +204,32 @@ async def delete_user(
             "updated_at": db_user.updated_at.isoformat() if db_user.updated_at else None,
         }
 
+
+async def update_my_profile(
+    data: UserUpdate,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    user: User = Depends(user_required)
+):
+    user_data = data.model_dump(exclude_unset=True)
+    user_data.pop("role_id", None) 
+
+    if "password" in user_data:
+        user.password_hash = get_password_hash(user_data.pop("password"))
+
+    for key, value in user_data.items():
+        setattr(user, key, value)
+
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    return {
+        "id": str(user.id),
+        "username": user.username,
+        "email": user.email,
+        "role": user.role.name if user.role else "unknown",
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+    }
 
 

@@ -64,7 +64,7 @@ async def save_refresh_token(session: AsyncSession, user_id: int, token: str):
     await session.commit()
 
 # ---------------------
-# Login & issue tokens
+# Login & issue tokens (updated)
 # ---------------------
 @auth_router.post("/token")
 async def login_for_access_token(
@@ -81,27 +81,19 @@ async def login_for_access_token(
         expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
-    # Check existing refresh token
-    result = await session.exec(select(RefreshToken).where(RefreshToken.user_id == user.id))
-    db_token = result.first()
+    # 🔹 CHANGED: Revoke all old refresh tokens on login
+    await session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user.id)
+        .values(revoked=True)
+    )
+    await session.commit()
 
-    if db_token and db_token.expires_at > now_utc_naive():
-        refresh_token = db_token.token
-        db_token.expires_at = now_utc_naive() + timedelta(hours=SLIDING_EXPIRATION_HOURS)
-        session.add(db_token)
-        await session.commit()
-    else:
-        refresh_token = create_refresh_token(data={"sub": user.username})
-        await save_refresh_token(session, user.id, refresh_token)
+    # 🔹 CHANGED: Always create a new refresh token
+    refresh_token = create_refresh_token(data={"sub": user.username})
+    await save_refresh_token(session, user.id, refresh_token)
 
-    # return Token(
-    #     access_token=access_token,
-    #     token_type="bearer",
-    #     userId=user.id,
-    #     refresh_token=refresh_token,
-    #     role=user.role.name
-    # )
-    # Use JSONResponse
+    # return JSON with tokens
     response = JSONResponse(content={
         "success": True,
         "access_token": access_token,
@@ -110,7 +102,7 @@ async def login_for_access_token(
         "role": user.role.name
     })
 
-    # Set HttpOnly cookies
+    # Set HttpOnly cookies (refresh and access) 🔹 CHANGED
     response.set_cookie(
         key="access_token",
         value=access_token,
@@ -130,24 +122,25 @@ async def login_for_access_token(
 
     return response
 
+
 # ---------------------
-# Refresh endpoint
+# Refresh endpoint (updated)
 # ---------------------
 @auth_router.post("/refresh")
 async def refresh_token_endpoint(
     session: Annotated[AsyncSession, Depends(get_session)],
-    # refresh_token: str = Form(...), 
-     # refresh_token: str,
-     refresh_token: str = Cookie(None)  # read refresh token from cookie
+    refresh_token: str = Cookie(None)  # read refresh token from cookie
 ):
     if not refresh_token:
         raise HTTPException(status_code=401, detail="No refresh token provided")
+
     try:
         payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
         username = payload.get("sub")
         if not username:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
+        # 🔹 CHANGED: Validate old token
         valid = await is_valid_refresh_token(session, username, refresh_token)
         if not valid:
             raise HTTPException(status_code=401, detail="Expired or revoked refresh token")
@@ -157,16 +150,49 @@ async def refresh_token_endpoint(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
+        # Create new access token
         access_token = create_access_token(
             data={"sub": username, "role": user.role.name},
             expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         )
 
-        return {
+        # 🔹 CHANGED: Rotate refresh token
+        new_refresh_token = create_refresh_token(data={"sub": username})
+        # Revoke old token
+        await session.execute(
+            update(RefreshToken)
+            .where(RefreshToken.token == refresh_token)
+            .values(revoked=True)
+        )
+        await session.commit()
+        # Save new token
+        await save_refresh_token(session, user.id, new_refresh_token)
+
+        # 🔹 CHANGED: Return and set new cookies
+        response = JSONResponse(content={
             "access_token": access_token,
-            "refresh_token": refresh_token,  # same token, expiry updated in DB
+            "refresh_token": new_refresh_token,
             "token_type": "bearer"
-        }
+        })
+
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            secure=True,
+            samesite="none"
+        )
+        response.set_cookie(
+            key="refresh_token",
+            value=new_refresh_token,
+            httponly=True,
+            max_age=SLIDING_EXPIRATION_HOURS * 3600,
+            secure=True,
+            samesite="none"
+        )
+
+        return response
 
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
