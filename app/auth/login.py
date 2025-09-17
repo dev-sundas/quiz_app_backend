@@ -115,7 +115,7 @@ async def login_for_access_token(
         httponly=True,
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         secure=True,
-        samesite="lax"
+        samesite="none"
     )
     response.set_cookie(
         key="refresh_token",
@@ -123,7 +123,7 @@ async def login_for_access_token(
         httponly=True,
         max_age=SLIDING_EXPIRATION_HOURS * 3600,
         secure=True,
-        samesite="lax"
+        samesite="none"
     )
 
     return response
