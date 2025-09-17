@@ -14,7 +14,7 @@ from app.auth.login import auth_router
 
 from fastapi.middleware.cors import CORSMiddleware
 
-origins = ["http://localhost:3000","https://quiz-app-eight-ebon-40.vercel.app"]
+origins = ["https://quiz-app-black-kappa.vercel.app"]
 
 
 @asynccontextmanager
