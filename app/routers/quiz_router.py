@@ -4,7 +4,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.auth.admin import admin_required, user_required
 from app.db import get_session
 from app.crud.quiz_crud import (
-    get_all_quizzes, get_quiz_by_id, create_quiz, get_quiz_with_options, get_user_quiz_history, import_quiz, update_quiz, delete_quiz
+    export_quiz_template, get_all_quizzes, get_quiz_by_id, create_quiz, get_quiz_with_options, get_user_quiz_history, import_quiz, update_quiz, delete_quiz
 )
 from app.models.user import User
 from app.schemas.quiz_schema import QuizAttemptRead, QuizCreate, QuizHistoryRead, QuizRead, QuizUpdate, QuizWithOptions
@@ -26,13 +26,17 @@ async def my_quiz_history(
         current_user=current_user,
     )
 
+@quiz_router.get("/export-quiz-template")
+async def get_export_quiz():
+    return await export_quiz_template()
 @quiz_router.post("/import-quiz")
-async def get_import_quiz(
+async def create_import_quiz(
     session: Annotated[AsyncSession, Depends(get_session)],
     admin: Annotated[User, Depends(admin_required)],  # 👈 Explicit
     file: UploadFile = File(...),
 ):    
     return await import_quiz(session, admin, file)
+
 
 
 @quiz_router.get("/{quiz_id}", response_model=QuizRead)

@@ -10,6 +10,8 @@ from app.models.user import User
 from app.schemas.quiz_schema import QuizAttemptSummary, QuizCreate, QuizHistoryRead, QuizUpdate
 from sqlalchemy.orm import selectinload
 import pandas as pd
+from fastapi.responses import StreamingResponse
+import io
 
 async def get_all_quizzes(
     session: Annotated[AsyncSession, Depends(get_session)],
@@ -354,3 +356,35 @@ async def import_quiz(
             "question_count": len(df),
         },
     }
+
+async def export_quiz_template():
+    # Define columns (including optional ones)
+    columns = [
+        "Quiz Title", "Quiz Description", "Time Limit", "Max Attempts",
+        "Question Text", "Marks", "Option A", "Option B", "Option C", "Option D", "Correct Option"
+    ]
+
+    # Create empty DataFrame with headers only
+    df = pd.DataFrame(columns=columns)
+
+    # Optionally: add a sample row for guidance
+    df.loc[0] = [
+        "Sample Quiz",
+        "This is a sample description",
+        30,
+        3,
+        "What is 2+2?",
+        1,
+        "3", "4", "5", "6",
+        "B"
+    ]
+
+    # Save to BytesIO
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="QuizTemplate")
+    output.seek(0)
+
+    # Return as downloadable file
+    headers = {"Content-Disposition": "attachment; filename=quiz_template.xlsx"}
+    return StreamingResponse(output, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", headers=headers)
