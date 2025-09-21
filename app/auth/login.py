@@ -215,8 +215,16 @@ async def logout(
         )
         await session.commit()
 
-        response.delete_cookie("access_token")
-        response.delete_cookie("refresh_token")
+        response.delete_cookie(
+        key="access_token",
+        secure=True,
+        samesite="none"
+        )
+        response.delete_cookie(
+            key="refresh_token",
+            secure=True,
+            samesite="none"
+        )
         return {"msg": "Logged out with access token"}
 
     elif request and request.refresh_token:
@@ -229,8 +237,18 @@ async def logout(
             session.add(db_token)
             await session.commit()
 
-        response.delete_cookie("access_token")
-        response.delete_cookie("refresh_token")
+        response.delete_cookie(
+        key="access_token",
+        path="/",
+        secure=True,
+        samesite="none"
+        )
+        response.delete_cookie(
+            key="refresh_token",
+            path="/",
+            secure=True,
+            samesite="none"
+        )
         return {"msg": "Logged out with refresh token"}
 
     raise HTTPException(status_code=401, detail="No valid token for logout")
